@@ -1,0 +1,54 @@
+title: Suspicious Run Key Persistence via PowerShell
+id: 8c1f9d42-6b3a-4e57-9a21-0f5c7d8e1b40
+status: experimental
+description: |
+  Detects creation or modification of an HKLM Run key whose value launches a
+  PowerShell script from a writable staging directory.
+
+  WORKED EXAMPLE for the range detection exercise (WP19). It is deliberately
+  written to demonstrate BOTH acceptance criteria: it fires on the seeded
+  SysHealth persistence and it does NOT fire on the documented Northwind vendor
+  agent, which is structurally identical.
+
+  The filter is the interesting part. Without it this rule has a 50% false
+  positive rate on this host alone -- and on a real estate, vendor software
+  writing Run keys is the single largest source of autostart noise.
+references:
+  - https://attack.mitre.org/techniques/T1547/001/
+author: Range course - worked example
+date: 2026/09/08
+tags:
+  - attack.persistence
+  - attack.t1547.001
+logsource:
+  product: windows
+  category: registry_set
+detection:
+  selection:
+    TargetObject|contains:
+      - '\Software\Microsoft\Windows\CurrentVersion\Run\'
+    Details|contains:
+      - 'powershell.exe'
+      - 'pwsh.exe'
+  selection_staging:
+    Details|contains:
+      - 'C:\ProgramData\'
+      - '\AppData\'
+      - '\Public\'
+      - '\Temp\'
+  # Vendor software legitimately writes Run keys. Northwind Agent is deployed
+  # under change CHG-2026-0142 and installs to Program Files -- a location an
+  # unprivileged attacker cannot write to, which is why this exclusion is
+  # defensible rather than merely convenient.
+  #
+  # Exclude on the INSTALL PATH, not on the value name. Excluding the name
+  # 'NorthwindAgent' would let an attacker evade the rule by naming their run
+  # key after a known-good product, which is a real technique.
+  filter_documented:
+    Details|contains: 'C:\Program Files\Northwind Agent\'
+  condition: selection and selection_staging and not filter_documented
+falsepositives:
+  - Legitimate software that stages executables in ProgramData. Verify against
+    the change records in C:\IT\change-records\ before escalating; if a genuine
+    record exists, extend filter_documented by install path and note it here.
+level: high

@@ -4,7 +4,7 @@ Living status doc for the Windows Server 2025 cyber-range builder. Keep it curre
 when you finish a work session, update **Current status**, **Known issues**, and
 **Next steps**, and add a line to [CHANGELOG.md](CHANGELOG.md).
 
-_Last updated: 2026-09-07 (restructured into three steps, then built and troubleshot on hardware)_
+_Last updated: 2026-09-08 (curriculum work packages WP14-WP23 added; see Next steps 3)_
 
 > **2026-09-07 - RESTRUCTURE. Read this before touching anything.**
 >
@@ -64,6 +64,13 @@ log collector, offline package source, scoring host, and the **red-cell C2 that
 delivers implants for initial access**. **Range administrators perform first boot
 and personalization** before a student receives the VM.
 
+**All infrastructure runs on that single admin VM, and there is no cloud resource
+access** (decided 2026-09-08). Two consequences: the F23 compensating controls are
+mandatory rather than advisory (risk accepted as RA-2026-001), and every external
+feed — EPSS, KEV, NVD, Sigma rules, ATT&CK, Sysmon, capture tooling — needs a
+dated offline snapshot staged on that box. See
+[docs/DECISION-scope-hybrid-and-linux.md](docs/DECISION-scope-hybrid-and-linux.md).
+
 That makes the range **multi-tenant with live offensive infrastructure**; see
 findings **F16–F24** in [docs/IMPROVEMENT-PLAN.md](docs/IMPROVEMENT-PLAN.md).
 **F16 and F17 are now closed by construction** — building each VM from scratch
@@ -90,8 +97,10 @@ conflict, not used for grading.
 - **Entry points:** `Stage-CyberRange.ps1` (structure) -> `Setup-CyberRange.ps1`
   (misconfigurations) -> `Test-RangeConfig.ps1` (verify, `-Repair` to fix drift),
   plus `Reset-CyberRange.ps1` for teardown.
-- **Control table:** `modules/RangeControls.psm1`, 125 controls, one definition
+- **Control table:** `modules/RangeControls.psm1`, **130 controls**, one definition
   each. Setup applies from it, Test checks against it, Reset reverts from it.
+  125 misconfigurations + 5 `benign-anomaly` controls (WP17) that are benign by
+  design. Every control also carries an optional ATT&CK `Technique` (WP15).
 - **Helpers:** 10 role-named files under `scripts/`, no numeric prefixes, no
   `scripts/dc/` directory.
 - **Teardown:** `Reset-CyberRange.ps1` undoes the range in place (dry run by
@@ -260,6 +269,87 @@ ange-fix.cmd` exists.
 that model was removed on 2026-09-07 in favour of building each VM from scratch,
 which closes F16 and F17 without any of the clone machinery.
 
+### 3. Applying the curriculum work packages to a LIVE VM (no restage)
+
+**WP14–WP23 were built on 2026-09-08. None of it needs a rebuild.** Only WP17
+touches the box, and it is expressed as control-table entries, so:
+
+```powershell
+.\Test-RangeConfig.ps1 -Repair -Only benign-anomaly
+```
+
+**Why this works.** `Repair-OneControl` skips PASS/WARN/N-A and applies
+everything else. A control that was *never applied* tests FAIL, which is
+indistinguishable from drift — so `-Repair` creates it. Verified: all five new
+controls report FAIL with a working `Apply` on an unbuilt host.
+
+Check first, change nothing:
+
+```powershell
+.\Test-RangeConfig.ps1 -Only benign-anomaly            # expect 5 FAIL before, 5 PASS after
+.\Test-RangeConfig.ps1 -Repair -Only benign-anomaly -WhatIf
+```
+
+**Two traps:**
+
+- **`-Repair` needs elevation** — it throws otherwise. The event-source control
+  cannot even *confirm* its state unelevated.
+- **Do not pass `-Only` for a full repair pass.** With `-Only` set, the delegated
+  DC fixers (ESC1 publish, `dc-security-gpo.ps1`) are skipped by design.
+
+Everything else added on 2026-09-08 is documentation and content — no VM change:
+`docs/templates/`, `docs/EXERCISE-RUBRIC.md`, `docs/EVIDENCE-HANDLING.md`,
+`docs/NETWORK-CAPTURE.md`, `docs/case-studies/`, `docs/DECISION-scope-hybrid-and-linux.md`,
+`content/sysmon/`, `content/detections/`.
+
+**Not yet run on hardware.** The control-table work is parse-clean and the Test
+blocks were exercised off-box, but no `-Repair` has executed on a real VM. Do that
+on a snapshotted box before a cohort sees it.
+
+### 3a. Curriculum work packages — WP14–WP23 (added 2026-09-08)
+
+WP1–WP13 make the range *work*; **WP14–WP23 make it a course.** The range is close
+to complete as a target and barely started as a curriculum: it teaches *find it* and
+*fix it*, which is about a third of an entry-level job. New gaps **G12–G21** in
+[docs/GRC-CONTROL-MAP.md](docs/GRC-CONTROL-MAP.md); specs in the plan.
+
+**All ten are built.** Status table and the "deliberately not automated" list are
+in [docs/IMPROVEMENT-PLAN.md](docs/IMPROVEMENT-PLAN.md) under *Implementation
+status*. Summary:
+
+- [x] **WP15** — `Technique` field on both control constructors, `$script:TechniqueMap`
+      (102 of 130 mapped, 28 deliberately blank), surfaced by `-ShowControl` with an
+      ATT&CK coverage line.
+- [x] **WP17** — `benign-anomaly` category, 5 controls, toggle `Categories.BenignAnomalies`.
+      **The only WP that changes the box.**
+- [x] **WP10 / WP14 / WP16 / WP21** — `docs/templates/` (7 templates) and
+      `docs/EXERCISE-RUBRIC.md`, `docs/EVIDENCE-HANDLING.md`.
+- [x] **WP18** — `docs/case-studies/rc4-kdc-lockout.md`, split into a student part
+      and an instructor part.
+- [x] **WP19** — `content/sysmon/sysmon-baseline.xml` + `content/detections/`
+      with one worked Sigma rule. Sysmon binary still has to be staged from the
+      admin box; it does not ship with Windows.
+- [x] **WP20** — `docs/NETWORK-CAPTURE.md`. Capture belongs on the admin box.
+- [x] **WP22 — decided 2026-09-08: not doing it.** No cloud resource access rules
+      out both the tenant walkthrough and Entra Connect. A cloud-free tabletop is
+      optional; **the syllabus limitation sentence is mandatory** and is drafted in
+      `docs/DECISION-scope-hybrid-and-linux.md`.
+- [ ] **WP23 — one call still needed.** The single-admin-VM decision broke the
+      original argument (the Linux box was going to host the collector and tooling
+      anyway). It cannot be resolved by putting student content on the admin box —
+      F23 requires that host to be out of scope, and a box students hunt on cannot
+      also be one they must not touch. So: **a Linux VM as a pure teaching target
+      (recommended), or no Linux and a syllabus limitation.** Not the middle.
+- [ ] **Stage the offline feed snapshots.** No cloud + no internet means EPSS, KEV,
+      NVD, the Sigma repo, ATT&CK Navigator, Sysmon and the WP20 capture tooling
+      all need dated local copies on the admin box, each with an owner. Table in
+      `docs/DECISION-scope-hybrid-and-linux.md`.
+
+**Still open from the original list:** WP1 (scoring baseline) is unchanged and
+still the biggest gap — and WP14's rubric now depends on it, so give WP1's
+register `BusinessImpact` and `RemediationCost` fields when it is built rather
+than retrofitting them.
+
 
 ## File map
 
@@ -287,7 +377,15 @@ ange-fix.cmd` |
 | `docs/BREAK-GLASS.md` | Seven-layer recovery runbook |
 | `docs/GRC-CONTROL-MAP.md` | Control mappings (NIST/CIS/STIG/NSA) + scenario gaps |
 | `docs/VERIFICATION-SESSION.md` | Primer for a verification-focused session |
-| `docs/IMPROVEMENT-PLAN.md` | Topology decisions, findings F16-F24, work packages |
+| `docs/IMPROVEMENT-PLAN.md` | Topology decisions, findings F16-F24, work packages WP1-WP23 + implementation status |
+| `docs/EXERCISE-RUBRIC.md` | **How the range is scored.** Budget, change control, two-directional benign-anomaly marking (WP14/16/17) |
+| `docs/templates/` | Student deliverables: finding write-up, risk register, POA&M, exec summary, after-action, change record, risk acceptance (WP10/14/16) |
+| `docs/EVIDENCE-HANDLING.md` | Order of volatility, hashing, collection log; what gets graded (WP21) |
+| `docs/case-studies/` | Root-cause exercises built from this project's own incidents (WP18) |
+| `docs/NETWORK-CAPTURE.md` | Capture and pcap exercises, run from the admin box (WP20) |
+| `docs/DECISION-scope-hybrid-and-linux.md` | WP22/WP23 options, costed. **Decision table is blank on purpose** |
+| `content/sysmon/` | The restorable Sysmon baseline, so "fix Sysmon" has an end state (WP19) |
+| `content/detections/` | Sigma exercises + one worked rule with both acceptance criteria (WP19) |
 | `docs/archive/` | Superseded docs, kept for provenance only |
 | `.attic/` | Pre-restructure copies of the removed scripts. Delete once the rebuild is verified |
 
@@ -305,9 +403,11 @@ ange-fix.cmd` |
   now has to hold with peer VMs attacking each other across it.
 - **How many participants** (how many clones on the LAN)? Sets the `<nn>` width in
   the per-clone naming scheme (WP2).
-- **One administrator box or two?** The C2 role is deliberately exposed to student
-  traffic; the answer-key/scoring store should not be. Sharing one VM is workable
-  but the risk should be accepted in writing (F23).
+- ~~One administrator box or two?~~ **ANSWERED 2026-09-08: one.** All
+  infrastructure on the single admin VM, no cloud resource access. Risk accepted
+  as **RA-2026-001** in
+  [docs/DECISION-scope-hybrid-and-linux.md](docs/DECISION-scope-hybrid-and-linux.md);
+  the F23 compensating controls are now mandatory rather than advisory.
 - **Which direction does the red cell run?** Is the implant the *live intrusion*
   students defend against, or the *foothold* students use to attack peers? Both are
   planned for, but the answer key wording and the grading split differ (WP7).

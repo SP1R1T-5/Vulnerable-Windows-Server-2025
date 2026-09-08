@@ -108,12 +108,13 @@ function New-RegControl {
         [string]$Why,
         [ValidateSet('All','DC','NonDC')][string]$Applies = 'All',
         [string]$Requires,
-        [string]$NotRepairable
+        [string]$NotRepairable,
+        [string[]]$Technique
     )
     [pscustomobject]@{
         Kind = 'Registry'; Id = $Id; Category = $Category; Name = $Name; Control = $Control
         Probe = 'reg'; Applies = $Applies; Requires = $Requires; Why = $Why; Note = $Note
-        NotRepairable = $NotRepairable
+        NotRepairable = $NotRepairable; Technique = $Technique
         Path = $Path; ValueName = $ValueName; Type = $Type; Value = $Value
         RevertValue = $(if ($RevertRemove) { $script:REVERT_REMOVE } else { $RevertValue })
         RevertType  = $(if ($RevertType) { $RevertType } else { $Type })
@@ -143,12 +144,13 @@ function New-CustomControl {
         [ValidateSet('All','DC','NonDC')][string]$Applies = 'All',
         [string]$Requires,
         [string]$Why,
-        [string]$NotRepairable
+        [string]$NotRepairable,
+        [string[]]$Technique
     )
     [pscustomobject]@{
         Kind = 'Custom'; Id = $Id; Category = $Category; Name = $Name; Control = $Control
         Probe = $Probe; Applies = $Applies; Requires = $Requires; Why = $Why; Note = $null
-        NotRepairable = $NotRepairable
+        NotRepairable = $NotRepairable; Technique = $Technique
         Path = $null; ValueName = $null; Type = $null; Value = $null
         RevertValue = $script:REVERT_NONE; RevertType = $null; RevertNote = $RevertNote
         Test = $Test; Apply = $Apply; Revert = $Revert; RevertNeeded = $RevertNeeded
@@ -177,6 +179,94 @@ $script:K = @{
     Def   = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender'
     Kerb  = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters'
     Audit = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit'
+}
+
+# ── MITRE ATT&CK technique mapping (WP15) ─────────────────────────────────
+#  Keyed by control Id; wildcards allowed, FIRST MATCH WINS, so put specific
+#  patterns above general ones. Applied by Get-RangeControlTable to any control
+#  that did not declare -Technique inline.
+#
+#  DELIBERATELY INCOMPLETE. A control with no defensible technique is left
+#  BLANK rather than mapped to something approximate -- students quote these
+#  back, and a wrong technique ID is worse than an absent one. Notable blanks:
+#  the Windows Update controls (a hardening finding, not an adversary
+#  behaviour), SNMP community strings, and the persistence payload files
+#  (the file is not the technique; the autostart that runs it is).
+#
+#  To add a mapping: put it here, not on the call site -- keeping them in one
+#  block is what makes the coverage report reviewable.
+$script:TechniqueMap = [ordered]@{
+    # ── Impair defenses ──
+    'def.*'                   = @('T1562.001')   # Disable or Modify Tools
+    'log.live.Sysmon*'        = @('T1562.001')
+    'fw.*'                    = @('T1562.004')   # Disable or Modify System Firewall
+    'log.ps.*'                = @('T1562.002')   # Disable Windows Event Logging
+    'log.cmdline4688'         = @('T1562.002')
+    'log.eventlogservice'     = @('T1562.002')
+    'log.size.*'              = @('T1070.001')   # Clear Windows Event Logs (shrink -> rollover)
+    'log.live.size.*'         = @('T1070.001')
+    'log.live.*'              = @('T1562.001')
+
+    # ── Credential access ──
+    'cred.wdigest.*'          = @('T1003.001')   # LSASS Memory
+    'lsa.runasppl*'           = @('T1003.001')
+    'lsa.live.dumpable'       = @('T1003.001')
+    'vbs.lsacfgflags'         = @('T1003.001')
+    'vbs.dg.lsacfgflags'      = @('T1003.001')
+    'vbs.scenario.credguard'  = @('T1003.001')
+    'vbs.enablevbs'           = @('T1003.001')
+    'cred.nolmhash'           = @('T1003.002')   # Security Account Manager
+    'cred.cachedlogons'       = @('T1003.005')   # Cached Domain Credentials
+    'cred.kerberos.etypes'    = @('T1558.003')   # Kerberoasting (RC4 downgrade)
+    'cred.lmcompat'           = @('T1562.010')   # Downgrade Attack
+    'smb.ntlmmin.*'           = @('T1562.010')
+    'cred.autologon.password' = @('T1552.002')   # Credentials in Registry
+    'cred.anon.*'             = @('T1087')       # Account Discovery
+
+    # ── Privilege escalation / lateral movement ──
+    'uac.enablelua'           = @('T1548.002')   # Bypass User Account Control
+    'uac.consent*'            = @('T1548.002')
+    'uac.securedesktop'       = @('T1548.002')
+    'uac.tokenfilter'         = @('T1550.002')   # Pass the Hash
+    'smb.srv.smb1'            = @('T1210')       # Exploitation of Remote Services
+    'smb.live.smb1'           = @('T1210')
+    'smb.srv.enable'          = @('T1557.001')   # LLMNR/NBT-NS Poisoning and SMB Relay
+    'smb.srv.require'         = @('T1557.001')
+    'smb.wks.*'               = @('T1557.001')
+    'smb.live.*signing'       = @('T1557.001')
+    'smb.nullsess.*'          = @('T1135')       # Network Share Discovery
+    'share.*'                 = @('T1135')
+    'rdp.*'                   = @('T1021.001')   # Remote Desktop Protocol
+    'winrm.*'                 = @('T1021.006')   # Windows Remote Management
+    'ps.*execpolicy'          = @('T1059.001')   # PowerShell
+    'legacy.live.psv2'        = @('T1059.001')
+    'legacy.live.tftp'        = @('T1105')       # Ingress Tool Transfer
+
+    # ── CVE reproductions ──
+    'cve.spooler'             = @('T1068')       # Exploitation for Privilege Escalation
+    'cve.pnp.*'               = @('T1068')
+    'cve.hive.*'              = @('T1003.002')   # HiveNightmare -> SAM
+    'cve.vss.shadow'          = @('T1003.002')
+
+    # ── Persistence ──
+    'persist.runkey'          = @('T1547.001')   # Registry Run Keys / Startup Folder
+    'persist.startupfolder'   = @('T1547.001')
+    'persist.winlogonshell'   = @('T1547.004')   # Winlogon Helper DLL
+    'persist.service'         = @('T1543.003')   # Windows Service
+    'persist.task.*'          = @('T1053.005')   # Scheduled Task
+    'persist.ifeo.*'          = @('T1546.012')   # IFEO Injection
+    'persist.beacon*'         = @('T1095')       # Non-Application Layer Protocol
+}
+
+function Resolve-ControlTechnique {
+    <# First-match-wins lookup of $script:TechniqueMap. Returns $null when the
+       control has no defensible mapping -- that is a valid, intended answer. #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Id)
+    foreach ($pattern in $script:TechniqueMap.Keys) {
+        if ($Id -like $pattern) { return $script:TechniqueMap[$pattern] }
+    }
+    return $null
 }
 
 # ══ updates + Defender ════════════════════════════════════════════════════
@@ -1250,6 +1340,189 @@ function Get-LsassPplEvent {
 # ══════════════════════════════════════════════════════════════════════════
 #  THE TABLE, assembled
 # ══════════════════════════════════════════════════════════════════════════
+# ══ benign anomalies (WP17) ═══════════════════════════════════════════════
+#  NOT misconfigurations. These are artifacts that LOOK suspicious and are
+#  entirely legitimate, each with a discoverable exculpatory trail, so that
+#  "escalate everything" is a losing strategy and students have to write
+#  "no action, and here is why" -- which is a real deliverable they will write
+#  constantly. Scored in BOTH directions: missing a true positive and
+#  escalating a false one both cost marks.
+#
+#  F24 SEPARATION. Everything here is branded 'Northwind' (a fictional vendor)
+#  and documented under C:\IT. The range's own seeded persistence is
+#  SysHealth / WinTelemetryHelper under C:\ProgramData\SysTasks, and live
+#  red-cell implants are neither. Do not blur those three naming schemes --
+#  the whole IR exercise depends on being able to tell them apart.
+#
+#  Answer key: every item here is BENIGN. None of it should be reported as a
+#  finding, and none of it should be removed by the blue team.
+function Get-BenignAnomalyControls {
+    $t = New-Object System.Collections.Generic.List[object]
+    $cat = 'benign-anomaly'
+    $ctl = 'NIST IR-4, SI-4 (triage); no finding -- benign by design'
+
+    $itDir     = 'C:\IT\change-records'
+    $agentDir  = 'C:\Program Files\Northwind Agent'
+    $agentPs1  = Join-Path $agentDir 'nwagent.ps1'
+    $taskName  = 'Northwind Nightly Report'
+    $evtSource = 'NorthwindAgent'
+
+    # 1. The exculpatory trail itself. Its own control so that -Repair restores
+    #    it if a student "cleans up" the evidence that proves the rest benign.
+    $recordsDir = $itDir
+    $t.Add((New-CustomControl -Id 'anomaly.changerecords' -Category $cat `
+        -Name 'IT change records present (exculpatory trail)' -Control $ctl `
+        -Test {
+            $f = Join-Path $recordsDir 'CHG-2026-0142-northwind-agent.txt'
+            if (Test-Path $f) { return @{ State='PASS'; Detail="trail present: $recordsDir" } }
+            return @{ State='FAIL'; Detail="missing: $f" }
+        }.GetNewClosure() `
+        -Apply {
+            New-Item -ItemType Directory -Path $recordsDir -Force | Out-Null
+            @"
+CHANGE RECORD  CHG-2026-0142
+Requested by : M. Okafor (Infrastructure)
+Approved by  : Change Advisory Board, 2026-07-14
+Implemented  : 2026-07-18 21:40
+
+Install Northwind Agent 4.2 (capacity reporting) on the domain controller.
+  - Installs to C:\Program Files\Northwind Agent
+  - Registers a logon autostart (HKLM Run: NorthwindAgent) so the collector
+    re-attaches after a reboot. This is expected and documented.
+  - Registers scheduled task '$taskName' at 03:15 daily. The 03:15
+    run is inside the approved maintenance window (Mon-Sun 03:00-04:00).
+  - Writes informational events to the Application log, source '$evtSource'.
+
+The vendor does not code-sign the PowerShell collector. This was raised at the
+CAB and accepted; see risk acceptance RA-2026-011. Do NOT remove this agent
+without raising a change -- capacity reporting for the whole estate depends
+on it.
+"@ | Set-Content -Path (Join-Path $recordsDir 'CHG-2026-0142-northwind-agent.txt') -Encoding UTF8
+            @"
+MAINTENANCE WINDOW (standing, approved 2026-01-09)
+  Daily 03:00-04:00 local.
+  Automated jobs, agent check-ins and backup verification run in this window.
+  Interactive administrative logons in this window are EXPECTED.
+"@ | Set-Content -Path (Join-Path $recordsDir 'maintenance-window.txt') -Encoding UTF8
+        }.GetNewClosure() `
+        -RevertNeeded { Test-Path $recordsDir }.GetNewClosure() `
+        -Revert { Remove-Item $recordsDir -Recurse -Force -ErrorAction SilentlyContinue }.GetNewClosure() `
+        -RevertNote 'change-record trail removed' `
+        -Intended "$itDir holds the change record and maintenance-window note" `
+        -Why 'Without a reachable trail the benign artifacts become a coin flip rather than an investigation. The right answer must be DISCOVERABLE, not guessable.'))
+
+    # 2. Unsigned vendor script in Program Files -- looks like a dropped payload.
+    $dir = $agentDir; $ps1 = $agentPs1
+    $t.Add((New-CustomControl -Id 'anomaly.vendoragent' -Category $cat `
+        -Name 'Unsigned vendor agent in Program Files' -Control $ctl `
+        -Test {
+            if (Test-Path $ps1) { return @{ State='PASS'; Detail="present: $ps1 (unsigned, benign)" } }
+            return @{ State='FAIL'; Detail="missing: $ps1" }
+        }.GetNewClosure() `
+        -Apply {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            @'
+# Northwind Agent 4.2 -- capacity collector
+# Vendor-supplied, unsigned. Writes a local capacity line once per run.
+# BENIGN: no network egress, no credential access, no persistence beyond the
+# documented autostart. See C:\IT\change-records\CHG-2026-0142.
+$log = Join-Path $PSScriptRoot 'capacity.log'
+$free = (Get-PSDrive C).Free
+"{0}  C: free={1}" -f (Get-Date -Format s), $free | Add-Content -Path $log -Encoding UTF8
+'@ | Set-Content -Path $ps1 -Encoding UTF8
+            @'
+Northwind Agent 4.2
+Capacity reporting collector.
+
+The collector is shipped as an unsigned PowerShell script. Code signing is on
+the vendor roadmap for 5.0. Deployment was approved under CHG-2026-0142 with
+risk acceptance RA-2026-011.
+
+Support: support@northwind.example (fictional vendor -- range artifact)
+'@ | Set-Content -Path (Join-Path $dir 'README.txt') -Encoding UTF8
+        }.GetNewClosure() `
+        -RevertNeeded { Test-Path $dir }.GetNewClosure() `
+        -Revert { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }.GetNewClosure() `
+        -RevertNote 'vendor agent directory removed' `
+        -Intended "$agentPs1 present, unsigned, inert" `
+        -Why 'An unsigned script in Program Files is the single most over-reported benign artifact in real SOCs. The script is deliberately inert -- it reads free disk space and writes a local line.'))
+
+    # 3. Run key for the agent -- indistinguishable from persistence at a glance.
+    $t.Add((New-RegControl -Id 'anomaly.runkey.vendor' -Category $cat `
+        -Name 'Run key (NorthwindAgent) -- documented vendor autostart' -Control $ctl `
+        -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -ValueName 'NorthwindAgent' `
+        -Type String -Value "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPs1`"" `
+        -RevertRemove -RevertNote 'vendor run-key removed' `
+        -Why 'Structurally identical to the SysHealth run key that IS the finding. The only thing separating them is the change record -- which is exactly the discrimination being taught.'))
+
+    # 4. Off-hours scheduled task, inside the documented maintenance window.
+    $tn = $taskName; $script = $agentPs1
+    $t.Add((New-CustomControl -Id 'anomaly.task.nightly' -Category $cat `
+        -Name "[live] Scheduled task '$taskName' at 03:15" -Control $ctl `
+        -Test {
+            if (Get-ScheduledTask -TaskName $tn -ErrorAction SilentlyContinue) {
+                return @{ State='PASS'; Detail='present, 03:15 daily (inside approved window)' }
+            }
+            return @{ State='FAIL'; Detail='missing' }
+        }.GetNewClosure() `
+        -Apply {
+            $a = New-ScheduledTaskAction -Execute 'powershell.exe' `
+                 -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $script)
+            $g = New-ScheduledTaskTrigger -Daily -At '03:15'
+            $p = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+            Register-ScheduledTask -TaskName $tn -Action $a -Trigger $g -Principal $p `
+                -Description 'Northwind Agent nightly capacity report (CHG-2026-0142)' -Force | Out-Null
+        }.GetNewClosure() `
+        -RevertNeeded { [bool](Get-ScheduledTask -TaskName $tn -ErrorAction SilentlyContinue) }.GetNewClosure() `
+        -Revert { Unregister-ScheduledTask -TaskName $tn -Confirm:$false -ErrorAction SilentlyContinue }.GetNewClosure() `
+        -RevertNote 'unregistered' `
+        -Intended "scheduled task '$taskName', daily 03:15, SYSTEM" `
+        -Why 'Off-hours SYSTEM execution is a classic escalation trigger. Here it is inside a standing maintenance window that is documented in C:\IT\change-records\maintenance-window.txt.'))
+
+    # 5. Application-log events, so the agent has a telemetry footprint too.
+    $src = $evtSource
+    $t.Add((New-CustomControl -Id 'anomaly.eventsource' -Category $cat `
+        -Name "[live] Application-log event source '$evtSource'" -Control $ctl `
+        -Test {
+            # SourceExists enumerates every log, so a non-elevated caller throws
+            # on Security/State. Report that as FAIL, NOT WARN: Repair-OneControl
+            # treats WARN as "already in the intended state" and would skip the
+            # control forever. FAIL is also honest -- we could not confirm it.
+            try {
+                if ([System.Diagnostics.EventLog]::SourceExists($src)) {
+                    return @{ State='PASS'; Detail='source registered; benign informational events' }
+                }
+                return @{ State='FAIL'; Detail='source not registered' }
+            } catch {
+                return @{ State='FAIL'; Detail="could not confirm (run elevated): $($_.Exception.Message)" }
+            }
+        }.GetNewClosure() `
+        -Apply {
+            # Defensive: if the existence probe throws (non-elevated, or a log we
+            # cannot read), still attempt creation and swallow "already exists"
+            # rather than letting the whole control fail on the probe.
+            $exists = $false
+            try { $exists = [System.Diagnostics.EventLog]::SourceExists($src) } catch { $exists = $false }
+            if (-not $exists) {
+                try { New-EventLog -LogName Application -Source $src -ErrorAction Stop }
+                catch { if ($_.Exception.Message -notmatch 'already exists') { throw } }
+            }
+            foreach ($n in 1..3) {
+                Write-EventLog -LogName Application -Source $src -EventId 4200 -EntryType Information `
+                    -Message "Northwind Agent capacity report completed successfully (run $n). CHG-2026-0142." -ErrorAction SilentlyContinue
+            }
+        }.GetNewClosure() `
+        -RevertNeeded {
+            try { [System.Diagnostics.EventLog]::SourceExists($src) } catch { $false }
+        }.GetNewClosure() `
+        -Revert { Remove-EventLog -Source $src -ErrorAction SilentlyContinue }.GetNewClosure() `
+        -RevertNote 'event source removed' `
+        -Intended "Application-log source '$evtSource' registered" `
+        -Why 'Gives the benign agent a log footprint, so a student working from the event log alone still meets it and has to adjudicate it rather than only meeting it on disk.'))
+
+    ,$t
+}
+
 function Get-RangeControlTable {
     <# The complete control set. -Config is optional: it is only used to resolve
        role/config-gated entries (and the expected NetBIOS name for autologon), so
@@ -1268,6 +1541,15 @@ function Get-RangeControlTable {
     $all.AddRange((Get-CveReproControls))
     $all.AddRange((Get-PersistenceControls))
     $all.AddRange((Get-BeaconContainmentControls -Config $Config))
+    $all.AddRange((Get-BenignAnomalyControls))
+
+    # WP15: stamp the ATT&CK technique onto anything that did not declare one
+    # inline. Done here rather than at 125 call sites so the whole mapping stays
+    # reviewable in one block -- see $script:TechniqueMap.
+    foreach ($c in $all) {
+        if (-not $c.Technique) { $c.Technique = Resolve-ControlTechnique -Id $c.Id }
+    }
+
     # Streams the controls one by one. Callers wrap in @() when they need an
     # array; returning ,$all instead would hand every @()-wrapping caller a
     # single-element array CONTAINING the list, which silently turns "125
@@ -1336,6 +1618,7 @@ function Test-RangeControl {
     $row = [pscustomobject]@{
         Id = $Control.Id; Category = $Control.Category; Name = $Control.Name
         Control = $Control.Control; State = 'WARN'; Detail = ''; Probe = $Control.Probe
+        Technique = $Control.Technique
     }
 
     $gate = Test-ControlApplicable -Control $Control -Config $Config

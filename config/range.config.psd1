@@ -16,6 +16,13 @@
         LegacyServices     = $true
         Persistence        = $true
         HiddenAccounts     = $true
+        # WP17. Benign-but-suspicious artifacts (a documented vendor agent, an
+        # off-hours task inside an approved maintenance window, an unsigned
+        # script) with a discoverable exculpatory trail under C:\IT. These are
+        # NOT findings -- they exist so that escalating everything costs marks
+        # and students must write "no action, and here is why".
+        # Set $false for a pure find-the-misconfiguration exercise.
+        BenignAnomalies    = $true
     }
 
     # ─── Domain Controller (AD-DS) module ────────────────────────────────

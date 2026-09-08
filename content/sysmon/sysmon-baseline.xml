@@ -1,0 +1,87 @@
+<!--
+  Range Sysmon baseline (WP19).
+
+  This is the "config to restore" that gap G3 asked for. The range DISABLES
+  Sysmon as a finding (control log.live.Sysmon*). Remediation is not merely
+  "start the service"; it is "start it with a configuration that actually
+  collects something", and this file is the defined end state for that.
+
+  Deliberately MODEST. It is a teaching baseline, not a production config:
+  students should be able to read the whole thing and understand why each rule
+  is here. Tuning it is the exercise.
+
+  Install:   sysmon64.exe -accepteula -i sysmon-baseline.xml
+  Update:    sysmon64.exe -c sysmon-baseline.xml
+  Verify:    Get-Service Sysmon64
+             Get-WinEvent -LogName Microsoft-Windows-Sysmon/Operational -MaxEvents 5
+
+  NOTE: Sysmon is not shipped with Windows and this range has no internet path.
+  Stage sysmon64.exe from the administrator box's offline share (see WP9/D6).
+-->
+<Sysmon schemaversion="4.90">
+  <HashAlgorithms>SHA256</HashAlgorithms>
+  <EventFiltering>
+
+    <!-- 1: Process creation. The backbone of nearly every detection. -->
+    <RuleGroup name="proc" groupRelation="or">
+      <ProcessCreate onmatch="exclude">
+        <Image condition="is">C:\Windows\System32\svchost.exe</Image>
+      </ProcessCreate>
+    </RuleGroup>
+
+    <!-- 3: Network connections. Scoped to interpreters rather than everything;
+         logging every connection on a DC is how people give up on Sysmon. -->
+    <RuleGroup name="net" groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <Image condition="image">powershell.exe</Image>
+        <Image condition="image">pwsh.exe</Image>
+        <Image condition="image">cmd.exe</Image>
+        <Image condition="image">wscript.exe</Image>
+        <Image condition="image">cscript.exe</Image>
+        <Image condition="image">rundll32.exe</Image>
+        <Image condition="image">mshta.exe</Image>
+        <Image condition="image">regsvr32.exe</Image>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <!-- 8/10: Injection and process access. Event 10 against lsass is the
+         LSASS-dumping signal (T1003.001) this range deliberately enables. -->
+    <RuleGroup name="inject" groupRelation="or">
+      <CreateRemoteThread onmatch="include">
+        <TargetImage condition="image">lsass.exe</TargetImage>
+      </CreateRemoteThread>
+      <ProcessAccess onmatch="include">
+        <TargetImage condition="image">lsass.exe</TargetImage>
+      </ProcessAccess>
+    </RuleGroup>
+
+    <!-- 11: File creation in the autostart and staging locations the range uses. -->
+    <RuleGroup name="file" groupRelation="or">
+      <FileCreate onmatch="include">
+        <TargetFilename condition="contains">\Start Menu\Programs\Startup\</TargetFilename>
+        <TargetFilename condition="contains">C:\ProgramData\</TargetFilename>
+        <TargetFilename condition="end">.ps1</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+    <!-- 12/13/14: Registry autostart plus the credential-exposure keys. -->
+    <RuleGroup name="reg" groupRelation="or">
+      <RegistryEvent onmatch="include">
+        <TargetObject condition="contains">\CurrentVersion\Run</TargetObject>
+        <TargetObject condition="contains">\Winlogon\Shell</TargetObject>
+        <TargetObject condition="contains">\Image File Execution Options\</TargetObject>
+        <TargetObject condition="contains">\Control\Lsa\RunAsPPL</TargetObject>
+        <TargetObject condition="contains">\SecurityProviders\WDigest\UseLogonCredential</TargetObject>
+        <TargetObject condition="contains">\Services\Sysmon</TargetObject>
+      </RegistryEvent>
+    </RuleGroup>
+
+    <!-- 22: DNS. Cheap, and the highest-value single source for beacon hunting. -->
+    <RuleGroup name="dns" groupRelation="or">
+      <DnsQuery onmatch="exclude">
+        <QueryName condition="end">.local</QueryName>
+      </DnsQuery>
+    </RuleGroup>
+
+  </EventFiltering>
+</Sysmon>

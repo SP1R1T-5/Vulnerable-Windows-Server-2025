@@ -161,6 +161,11 @@ $categories = [ordered]@{
     'legacy-services'    = 'LegacyServices'
     'cve-repro'          = $null      # always on; no config toggle
     'persistence'        = 'Persistence'
+    # WP17. NOT a misconfiguration category -- benign artifacts that look
+    # suspicious, each with an exculpatory trail, so "escalate everything" is a
+    # losing strategy. Applied like any other category; see the F24 naming
+    # separation note in modules\RangeControls.psm1.
+    'benign-anomaly'     = 'BenignAnomalies'
 }
 
 foreach ($cat in $categories.Keys) {

@@ -245,6 +245,16 @@ Requirements, all of which belong in the operations runbook (WP11):
   traffic; the answer-key and scoring host should not be. If budget allows one VM,
   say so explicitly and accept the risk in writing.
 
+> **RESOLVED 2026-09-08 — one box.** All range infrastructure lives on the single
+> administrator VM. The split above is **not** happening, so the compensating
+> controls stop being recommendations and become mandatory: firewalled, explicitly
+> out of scope in the brief, master secret held off the range, pull-never-push
+> collection, answer keys encrypted at rest, snapshot before each round.
+> Written up as **RA-2026-001** in
+> [DECISION-scope-hybrid-and-linux.md](DECISION-scope-hybrid-and-linux.md), which
+> also states the residual risk plainly: the controls reduce likelihood, not
+> impact, because the impact is structural.
+
 ### F24 — MEDIUM · Seeded persistence and live implants are indistinguishable, so IR cannot be adjudicated
 
 Consequence of D7. `80-persistence.ps1` plants five mechanisms disguised as
@@ -285,10 +295,22 @@ Requirements:
 | **WP11** | Multi-tenant rules of engagement + operations runbook | F23, F24, G6 | WP2 | M |
 | **WP12** | `Reset-Range.ps1` / `Get-RangeStatus.ps1` | — | WP1 | M |
 | **WP13** | Privileged-access tiering — somewhere for correct remediation to land | G9 | WP6 | M |
+| **WP14** | Constrained remediation — prioritisation and risk acceptance | G13 | WP1 | M |
+| **WP15** | ATT&CK technique mapping in the control table | G14 | — | S |
+| **WP16** | Change-management wrapper | G15 | — | S |
+| **WP17** | Benign anomalies and the cost of over-escalation | G16 | WP6, WP7 | M |
+| **WP18** | Root-cause analysis case study (the RC4 lockout) | G21 | — | S |
+| **WP19** | Detection engineering | G17 | WP5, WP15 | M |
+| **WP20** | Network capture and pcap analysis | G18 | D6 (admin box) | M |
+| **WP21** | Evidence handling and IR process discipline | G19 | WP7 | S |
+| **WP22** | Hybrid identity module | G20 (half) | — | L |
+| **WP23** | A Linux host on the range | G20 (half) | — | M |
 
 **Dependency shape:** WP1 and WP2 are independent of each other and of everything
 else; nearly everything else hangs off WP1. WP3 is small enough to ride along with
-whichever of WP1/WP2 is done first.
+whichever of WP1/WP2 is done first. **WP15, WP16 and WP18 depend on nothing** and
+can be done at any time — see the curriculum section below for why they are worth
+doing early.
 
 ---
 
@@ -844,18 +866,36 @@ essentially no CVEs, so scan triage cannot be taught or graded.
 
 ---
 
-## WP10 — GRC deliverable scaffolding
+## WP10 — Student deliverable pack (was: GRC deliverable scaffolding)
 
-**Closes:** G11. Templates under `docs/templates/`, graded against the register:
+**Closes:** G11 **and G12**. Templates under `docs/templates/`, graded against the
+register.
 
+**Reframed 2026-09-08.** This was filed as GRC scaffolding — a niche artifact for
+the governance half of the course. That undersells it. Today the range produces an
+answer key *for the instructor* and **nothing from the student**, and the most
+common complaint about junior hires by a wide margin is that they can find things
+but cannot write them up. This is not the GRC extra; it is the deliverable the
+whole course should be assessed on, and it is the artifact a student can show an
+interviewer.
+
+- **Finding write-up** — the core template, one per finding: what, where, evidence
+  (with hashes, per WP21), impact in business terms, reproduction steps,
+  recommended remediation, references. This is the unit of work in every
+  assessment, pentest and SOC escalation the student will ever write.
 - **Risk register** — one row per finding, with likelihood/impact and a rationale.
 - **SSP-style control statement** — how each affected control is (not) implemented.
-- **POA&M** — prioritised, resourced, dated remediation plan.
+- **POA&M** — prioritised, resourced, dated remediation plan. Pairs with WP14.
 - **After-action report** — for the IR side; the artifact WP7's timeline is graded
   against.
+- **Executive summary** — one page, no jargon, for a non-technical reader who
+  controls the budget. Explaining risk to someone who does not want a packet capture
+  is a distinct skill and is usually the one that gets people promoted.
 
 Each template should reference finding IDs from WP1, so the student's deliverable
-and the instructor's scoring run share vocabulary.
+and the instructor's scoring run share vocabulary. Grade the writing, not just the
+findings: a correct finding described so vaguely that nobody could act on it is a
+failed deliverable, and saying so early is a kindness.
 
 ---
 
@@ -944,6 +984,312 @@ than a workaround — which is the whole point of the layer.
 
 ---
 
+# Curriculum work packages (WP14–WP23)
+
+_Added 2026-09-08._ WP1–WP13 make the range **work**. These make it a **course**.
+
+The distinction matters because the range is close to complete as a target and
+barely started as a curriculum. It teaches *find it* and *fix it*, which is roughly
+a third of an entry-level job. The rest — triage, prioritisation, documentation,
+communication, and operating inside process constraints — is not modelled anywhere.
+A student could clear every scenario in this range and still be filtered out in a
+first-round interview, because nothing here asks them to do the things the job is
+actually made of.
+
+Two of these WPs correct habits the range currently teaches *backwards*: it trains
+students to remediate instantly and unilaterally (WP16), and — because an answer key
+exists — that every anomaly resolves cleanly (WP17). Those are worth fixing even if
+nothing else here is built.
+
+## New gaps
+
+| Gap | What is missing | WP |
+|---|---|---|
+| **G12** | No student deliverable — the range produces an answer key for instructors and nothing from the student | WP10 |
+| **G13** | No prioritisation or risk acceptance; 125 findings with an implicit "fix everything" | WP14 |
+| **G14** | No ATT&CK mapping as structured data — it exists only as prose in comments | WP15 |
+| **G15** | Change management not modelled; unilateral instant remediation is rewarded | WP16 |
+| **G16** | Every anomaly has a clean answer; no ambiguity, no false positives, no cost to over-escalating | WP17 |
+| **G17** | No detection engineering — students consume detections and never author one | WP19 |
+| **G18** | No network layer; the range is host-centric and its real traffic is never captured | WP20 |
+| **G19** | No evidence handling or forensic process discipline | WP21 |
+| **G20** | On-premises Windows only — no hybrid/cloud identity, no Linux | WP22, WP23 |
+| **G21** | No root-cause analysis exercise; students fix symptoms and never diagnose a cause | WP18 |
+
+**Cheapest three with the highest return:** WP10 (already scoped, just reframed),
+WP15 (one field on a table that already exists), and WP14 (the 125 controls are
+already there — it needs a budget and a rubric, not a build).
+
+## Implementation status — 2026-09-08
+
+All ten were built in the same session they were specified. **Nothing here
+requires a restage:** the only work package that touches the VM (WP17) is
+expressed as control-table entries, so `Test-RangeConfig.ps1 -Repair` applies it
+in place. See *Applying this to a live VM* in `HANDOFF.md`.
+
+| WP | Status | Where it lives |
+|---|---|---|
+| WP10 | **Done** | `docs/templates/` — finding write-up, risk register, POA&M, exec summary, after-action |
+| WP14 | **Done** | `docs/EXERCISE-RUBRIC.md` §1, `docs/templates/risk-acceptance.md`, `poam.md` |
+| WP15 | **Done, code** | `$script:TechniqueMap` + `Resolve-ControlTechnique` in `modules/RangeControls.psm1`; `Technique` on both control constructors; surfaced by `Test-RangeConfig.ps1 -ShowControl` |
+| WP16 | **Done** | `docs/templates/change-record.md`, `docs/EXERCISE-RUBRIC.md` §2 |
+| WP17 | **Done, code** | `Get-BenignAnomalyControls` (5 controls, category `benign-anomaly`); config toggle `Categories.BenignAnomalies` |
+| WP18 | **Done** | `docs/case-studies/rc4-kdc-lockout.md` — two-part exercise, instructor split marked |
+| WP19 | **Done, content** | `content/sysmon/sysmon-baseline.xml`, `content/detections/` incl. a worked Sigma rule |
+| WP20 | **Done, guidance** | `docs/NETWORK-CAPTURE.md` — capture runs on the admin box, not student VMs |
+| WP21 | **Done** | `docs/EVIDENCE-HANDLING.md` |
+| WP22 | **Decided: not doing it** | No cloud resource access (2026-09-08). Syllabus limitation sentence drafted in `docs/DECISION-scope-hybrid-and-linux.md`; a cloud-free tabletop stays optional |
+| WP23 | **Blocked, one call needed** | Same doc. The single-admin-VM decision broke the "it hosts the tooling anyway" argument — a Linux host must now be a *pure teaching target* or nothing |
+
+**Control count: 125 → 130.** The five new ones are benign by design and are the
+only additions that change what is on the box.
+
+### What is deliberately not automated
+
+- **WP19's Sysmon binary.** Sysmon is not shipped with Windows and the range has
+  no internet path; stage `sysmon64.exe` from the administrator box's offline
+  share. The *config* is shipped, which is what "restore Sysmon" needed to have a
+  defined end state.
+- **WP20's capture.** It belongs on the administrator box, which this repo does
+  not build.
+- **WP22/WP23.** Both need infrastructure decisions and money, not code. The
+  document exists to stop them drifting. WP22 is now decided (not doing it);
+  WP23 needs one call.
+- **Every external feed.** No cloud and no internet means EPSS, KEV, NVD, the
+  Sigma rule repo, ATT&CK Navigator, Sysmon and the WP20 capture tooling all need
+  frozen, **date-stamped** local snapshots staged on the admin box, each with an
+  owner who refreshes them between cohorts. Table in
+  [DECISION-scope-hybrid-and-linux.md](DECISION-scope-hybrid-and-linux.md) under
+  *Operating with no external feeds*. Keep the staleness visible to students
+  rather than hiding it — "our vulnerability data is 90 days old" is a real
+  finding in a real assessment.
+- **The ATT&CK mapping is intentionally incomplete** — 102 of 130 controls are
+  mapped and 28 are deliberately blank. See the note above `$script:TechniqueMap`
+  for which, and why a blank is the correct answer rather than a gap.
+
+---
+
+## WP14 — Constrained remediation: prioritisation and risk acceptance
+
+**Closes:** G13. **Depends on:** WP1 (findings must be enumerable and scorable).
+
+The control table hands a student 125 findings. Real organisations never fix 125
+things; they fix the eight that matter this quarter and formally accept the rest.
+The range's implicit lesson today is the opposite of the job.
+
+- Give each round a **budget**: a fixed number of maintenance windows and
+  engineer-hours, and at least one control whose remediation carries a stated
+  business cost (turning SMB signing on breaks a named legacy application).
+- Students produce a ranked remediation plan with a written justification per item,
+  **plus a risk-acceptance register** for everything they are not fixing — owner,
+  rationale, compensating control, review date.
+- **Grade the reasoning, not the count.** A student who fixes 12 findings and
+  accepts 113 with defensible rationale should beat one who fixes 40 at random.
+- Seed at least one deliberate trap: something cheap and low-risk next to something
+  expensive and critical. If a student's ranking does not change when the budget
+  changes, they did not prioritise — they sorted.
+- **Feeds back into WP1:** the register needs `BusinessImpact` and
+  `RemediationCost` fields for any of this to be gradable. Add them when WP1 is
+  built rather than retrofitting.
+
+---
+
+## WP15 — ATT&CK technique mapping in the control table
+
+**Closes:** G14. **Depends on:** nothing. The table already exists.
+
+`New-RegistryControl` and `New-CustomControl` in `modules/RangeControls.psm1`
+already carry `Control` (NIST/CIS), `Why` and `Note`. There is no technique field,
+and ATT&CK currently appears in the tree only as prose in a handful of comments.
+
+- Add a `Technique` field (one or more IDs) to **both** control constructors and to
+  the manifest / answer-key output. Examples already present in the range:
+  `T1558.003` Kerberoasting, `T1558.004` AS-REP roasting, `T1003.001` LSASS memory,
+  `T1003.006` DCSync, `T1547.001` Run keys, `T1053.005` scheduled task,
+  `T1649` steal or forge certificates.
+- Populate it only where a technique genuinely applies. **Leave it blank rather
+  than forcing one** — a wrong mapping is worse than no mapping, and students will
+  quote it back.
+- Two payoffs beyond fluency: `Test-RangeConfig.ps1` can emit **coverage by
+  tactic**, and the populated field becomes the direct input to WP19.
+- Then require students to map their own findings to ATT&CK in the WP10 write-up.
+  Technique-ID fluency is asked about in nearly every SOC interview.
+
+---
+
+## WP16 — Change-management wrapper
+
+**Closes:** G15. **Depends on:** nothing. This is a rule and a template, not a build.
+
+Students currently remediate instantly and unilaterally — precisely the habit that
+gets a junior in trouble in their first month. In a real estate every change is a
+ticket with an impact assessment, a rollback plan, an approver and a window.
+
+- A one-page **change record** template: what, why, blast radius, rollback, window,
+  approver.
+- **Remediation is only scored if a change record exists for it.** An unrecorded fix
+  scores zero even when it is technically correct. This is the whole mechanism.
+- At least one change must be **rejected or deferred** by an instructor playing
+  change board, so students experience "no" and have to propose a compensating
+  control instead.
+- Deliberately include a change that **breaks something** — SMB signing against a
+  legacy client, or disabling the PSv2 engine when a script depends on it. The
+  rollback plan then earns its place instead of being a box-ticking exercise. Note
+  that the project already has a real example of this class in F40: on a DC,
+  SYSVOL/NETLOGON force signing back on regardless of what you set.
+
+---
+
+## WP17 — Benign anomalies and the cost of over-escalation
+
+**Closes:** G16. **Depends on:** WP6 (noise) and WP7 (a timeline to hide in).
+
+Every artifact on the box today is either a seeded finding or ordinary background.
+Because an answer key exists, everything resolves cleanly. Real queues are mostly
+false positives, and over-escalation is a genuine junior failure mode — the analyst
+who escalates everything is as much of a problem as the one who misses things.
+
+- Seed **3–5 benign-but-suspicious** artifacts with real, checkable explanations: a
+  scheduled task with an odd name that a real administrator created, an admin logon
+  at 03:00 that matches a documented maintenance window, an unsigned binary that is
+  a legitimate vendor tool, a service account with a stale password that is
+  genuinely still in use.
+- Each needs a discoverable **exculpatory trail** — a change record, a ticket, a
+  README. The right answer must be reachable by investigation, not a coin flip.
+- **Score both directions:** missing a true positive *and* escalating a false one.
+  Require students to write "no action, and here is why", which is a real deliverable
+  they will write constantly.
+- Keep the list in the answer key so an instructor can adjudicate. Per **F24**, these
+  must also be distinguishable from live red-cell activity.
+
+---
+
+## WP18 — Root-cause analysis case study (the RC4 lockout)
+
+**Closes:** G21. **Depends on:** nothing. The material already exists.
+
+This project's own post-promotion lockout is a better RCA exercise than anything
+synthetic, and it is already written up. A single registry value —
+`SupportedEncryptionTypes = 4`, an allow-list that silently cleared AES128/AES256 —
+took down every domain logon, but *only after promotion*, because local accounts
+authenticate over NTLM and never touch the KDC.
+
+- Publish it sanitised under `docs/case-studies/`: symptom, the false leads (the
+  account looked fine; the operator-keeper did not help because the account was
+  never the problem), the **discriminating observation** (it fails only after
+  promotion — what does that rule out?), root cause, fix, and the one-line recovery.
+- **Exercise:** give students the symptom and a broken box, not the answer. The move
+  being taught — *what changed, and what does the failure's timing eliminate* — is
+  the most transferable skill in the course.
+- Optional second study from the same history: **F39**, where a `Disabled` ADWS sank
+  eight unrelated-looking AD checks at once. That teaches the other half of the
+  skill — many failures, one cause — and the instinct to look for a shared
+  dependency before debugging each symptom.
+- This also quietly teaches that senior people cause outages and write them up
+  honestly, which is worth modelling.
+
+---
+
+## WP19 — Detection engineering
+
+**Closes:** G17. **Depends on:** WP5 (logs must go somewhere) and WP15 (technique IDs).
+
+Students hunt persistence by hand and never author a detection. This is the natural
+completion of WP5 and one of the stronger entry paths in the current market.
+
+- For a defined subset of findings, the deliverable is a **rule, not a fix**: Sigma
+  for portability, or KQL/SPL if a specific stack is being taught.
+- **Require proof both ways.** The rule must fire on the seeded artifact and must
+  *not* fire on the WP17 benign anomalies. False-positive rate is part of the grade,
+  because it is the part of the job that actually consumes an analyst's week.
+- Ship a **restorable Sysmon configuration** as the baseline — this is the "config
+  to restore" that G3 asked for — so students tune an existing detection set rather
+  than starting from a blank file.
+- Track coverage by ATT&CK tactic using WP15's field and let students watch the map
+  fill in. Coverage gaps are then visible and arguable, which is the real
+  conversation detection teams have.
+
+---
+
+## WP20 — Network capture and pcap analysis
+
+**Closes:** G18. **Depends on:** the administrator box (D6).
+
+The range is entirely host-centric, yet that LAN carries beacon check-ins, relay
+attempts, peer-to-peer lateral movement and live C2 — none of it recorded. Interviews
+lean hard on TCP/IP, DNS, TLS and "read this capture and tell me what happened."
+
+- Capture on the administrator box, or via a hypervisor mirror/SPAN if available,
+  for the exercise window; publish per-round pcaps as evidence.
+- Exercises that fall straight out of what the range already does: identify the
+  beacon by its 300-second period, spot SMB1 and unsigned SMB, watch a relay attempt,
+  and find cleartext credentials on the wire — WinRM `AllowUnencrypted`, SNMP
+  `public`, LDAP simple bind. All of those are existing controls.
+- Pair with WP19 so students see **the same event host-side and network-side**, and
+  learn that one telemetry source is never enough.
+- **Cheap version if live capture is awkward:** pre-record one good pcap per scenario
+  and ship it as a static artifact. Most of the teaching value survives.
+
+---
+
+## WP21 — Evidence handling and IR process discipline
+
+**Closes:** G19. **Depends on:** WP7 (there must be an incident to handle).
+
+Students dump LSASS and read logs, but nothing teaches them to preserve an artifact
+so it survives scrutiny. This is the difference between "I found it" and "I can
+prove it", and it is where careless juniors create legal problems.
+
+- A one-page procedure: order of volatility, hash before and after, record
+  where/when/who, work from copies, do not contaminate the box.
+- **Require SHA-256 hashes and a collection log** for every artifact cited in the
+  WP10 after-action report. Uncited or unhashed evidence earns no credit.
+- Teach the contamination lesson explicitly and let it cost something once: a student
+  who remediates before collecting has destroyed the evidence, and should discover
+  that by experiencing it rather than by being told.
+- Keep it proportionate. This is not a forensics course; the goal is habits and
+  defensible notes, not tool mastery.
+
+---
+
+## WP22 — Hybrid identity module
+
+**Closes:** half of G20. **Size:** L, and honestly this may not belong in this range.
+
+On-premises-only AD is a 2015 curriculum. Most enterprises are hybrid, and the
+incidents that matter now are in cloud identity: token theft, OAuth consent phishing,
+conditional-access gaps, over-permissioned service principals. A student who can
+Kerberoast but has never seen Entra ID is not employable in the way this course
+intends.
+
+- **Cheapest useful version:** a tabletop plus a read-only walkthrough of a
+  developer-tier tenant. No range integration, no new infrastructure.
+- **Next step up:** an Entra Connect sync from `range.lab` to a test tenant, which
+  makes password-hash-sync and hybrid-account attack paths real.
+- **Decide explicitly whether this is in scope.** If it is not, say so in the syllabus
+  and name it as a known limitation. That is more honest than silence, and it lets
+  students go and get it elsewhere rather than discovering the gap in an interview.
+
+---
+
+## WP23 — A Linux host on the range
+
+**Closes:** the other half of G20. **Size:** M.
+
+Every security team runs Linux tooling and most estates are mixed. One host turns
+this from a Windows course into a security course.
+
+- **Minimum viable:** one Linux VM, shared or per pod, with SSH, a weak `sudo` rule,
+  a world-readable secret, and cron-based persistence — enough for a second
+  operating system's worth of hunting and hardening.
+- It is also the natural home for tooling the other WPs need anyway: the WP5
+  collector, Sigma tooling for WP19, and Zeek/tshark for WP20. It earns its keep
+  operationally as well as pedagogically, which is what makes it worth the VM.
+- Check the licence and support position for whatever distribution is chosen; a
+  university deployment wants a clear redistribution story.
+
+---
+
 ## 4. Sequencing
 
 **Wave 0 — before any golden image is cut.** WP3 (small; removes the placeholder and
@@ -960,8 +1306,43 @@ proved broken.
 **Wave 3 — content.** WP5, WP6, WP7 in that order; the IR narrative needs the noise
 and the telemetry to sit in.
 
-**Wave 4 — WP8, WP9, WP10, WP11, WP12, WP13.** Depth, GRC deliverables, operations,
-and somewhere for correct remediation to land.
+**Wave 4 — WP8, WP9, WP10, WP11, WP12, WP13.** Depth, student deliverables,
+operations, and somewhere for correct remediation to land.
+
+**Wave 5 — curriculum (WP14–WP23).** See below; parts of it should jump the queue.
+
+### Curriculum sequencing (added 2026-09-08)
+
+Treating WP14–WP23 as "later" would be a mistake, because three of them depend on
+nothing and two of them correct habits the range currently teaches backwards.
+
+**Do these whenever there is a spare hour — no dependencies:**
+
+- **WP15** (ATT&CK field) — one field on a table that already exists, and WP19 needs
+  it later anyway.
+- **WP16** (change management) — a template and a scoring rule. Zero build.
+- **WP18** (RCA case study) — the material is already written; this is an editing job.
+
+**Do this as soon as WP1 lands:** **WP14**. The 125 controls already exist; what is
+missing is a budget and a rubric. It is the single biggest step from "hardening
+checklist" to "the job", and WP1 should grow its `BusinessImpact` /
+`RemediationCost` fields at build time rather than by retrofit.
+
+**Reframe now, build with Wave 4:** **WP10**. It is already scoped — it needs the
+finding write-up and executive summary added, and to be understood as the thing the
+course is assessed on rather than a GRC extra.
+
+**After WP5:** **WP19**, then **WP20**. Detection engineering and network evidence
+both need somewhere for telemetry to land, and they reinforce each other — the same
+event, two sources.
+
+**With WP7:** **WP17** and **WP21**. Benign anomalies need a timeline to hide in;
+evidence handling needs an incident to handle.
+
+**Decide, do not drift:** **WP22** (hybrid identity) and **WP23** (Linux). Both are
+real employability gaps and neither is cheap. Either commit to one, or name both as
+documented limitations in the syllabus — the failure mode is leaving them
+perpetually "planned" and letting students discover the gap in an interview.
 
 ### Realism budget
 

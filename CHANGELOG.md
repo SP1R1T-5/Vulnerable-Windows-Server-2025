@@ -8,6 +8,123 @@ Fixed / Removed**, newest date on top.
 
 ## [Unreleased]
 
+### Changed — 2026-09-08 (infrastructure scope decided: one admin VM, no cloud)
+Operator decision: **all range infrastructure lives on the single administrator
+VM, and there is no cloud resource access.** Docs only; no code change.
+
+- **F23 resolved — one box, not two.** The recommended split (C2 exposed to
+  student traffic, answer-key/scoring store not) is not happening. The
+  compensating controls therefore become **mandatory**: firewalled, explicitly out
+  of scope in the student brief, master secret held off the range, pull-never-push
+  collection, answer keys encrypted at rest, snapshot before each round. Written
+  up as **RA-2026-001** in `docs/DECISION-scope-hybrid-and-linux.md`, which states
+  the residual risk plainly — the controls reduce likelihood, not impact, because
+  the impact is structural.
+- **WP22 decided: not doing it.** No cloud access rules out both the developer-tier
+  tenant walkthrough and Entra Connect. A cloud-free tabletop remains optional; the
+  syllabus limitation sentence is now mandatory and is drafted.
+- **WP23 blocked on one call.** The single-VM decision broke its original argument
+  (the Linux host was to carry the collector and tooling anyway). It cannot be
+  fixed by hosting student content on the admin box: F23 requires that host to be
+  out of scope, and a box students hunt on cannot also be one they must not touch.
+  Remaining options are a Linux VM as a **pure teaching target** (recommended) or
+  no Linux plus a syllabus limitation.
+- **New: *Operating with no external feeds*.** No cloud plus no internet reaches
+  further than WP22 — EPSS, CISA KEV, NVD, the Sigma rule repo, ATT&CK Navigator,
+  the Sysmon binary and the WP20 capture tooling all assume a live feed. Each now
+  has a documented offline substitute: a **dated** snapshot staged on the admin
+  box with a named owner. Recommendation is to keep the staleness visible to
+  students rather than hide it — "our vulnerability data is 90 days old" is a real
+  assessment finding.
+
+### Added — 2026-09-08 (WP14–WP23 IMPLEMENTED)
+All ten curriculum work packages built. **No restage required** — the only one
+that touches the VM is expressed as control-table entries.
+
+**Code**
+- **WP15 — ATT&CK mapping.** `Technique` parameter on `New-RegControl` and
+  `New-CustomControl`; `$script:TechniqueMap` (Id patterns, first match wins) plus
+  `Resolve-ControlTechnique`, applied centrally in `Get-RangeControlTable` so the
+  whole mapping stays reviewable in one block instead of scattered over 130 call
+  sites. `Test-RangeControl` carries it through; `Test-RangeConfig.ps1` gained a
+  `Technique` column and, under `-ShowControl`, an **ATT&CK coverage** summary of
+  what is actually in place (PASS/WARN only). **102 of 130 mapped, 28 deliberately
+  blank** — a control with no defensible technique is left unmapped rather than
+  approximated.
+- **WP17 — benign anomalies.** New `Get-BenignAnomalyControls` / category
+  `benign-anomaly`: 5 controls that are *benign by design* — a documented vendor
+  agent (unsigned script in Program Files), its Run key, an 03:15 scheduled task
+  inside an approved maintenance window, an Application-log event source, and the
+  `C:\IT\change-records\` exculpatory trail that clears all of them. Toggle
+  `Categories.BenignAnomalies`; registered in `Setup-CyberRange.ps1`.
+  **Control count 125 → 130.**
+- Fixed a semantic bug in the event-source control before it shipped: a failed
+  `SourceExists` probe returned WARN, and `Repair-OneControl` treats WARN as
+  "already in the intended state", so the control would have been skipped forever
+  on any box where the probe threw. Now FAIL, with a defensive `Apply`.
+
+**Content and docs**
+- `docs/templates/` (WP10, WP14, WP16) — finding write-up, risk register, POA&M,
+  executive summary, after-action report, change record, risk acceptance.
+- `docs/EXERCISE-RUBRIC.md` (WP14/16/17) — the budget, the "no change record, no
+  marks" rule, and two-directional scoring of benign anomalies. Prioritisation
+  reasoning is weighted at 35%; **number of findings fixed is not weighted at all**.
+- `docs/case-studies/rc4-kdc-lockout.md` (WP18) — this project's own F26 lockout
+  as a two-part RCA exercise, with F39 (one disabled ADWS sinking eight checks) as
+  the "many failures, one cause" counterpart.
+- `docs/EVIDENCE-HANDLING.md` (WP21), `docs/NETWORK-CAPTURE.md` (WP20),
+  `docs/DECISION-scope-hybrid-and-linux.md` (WP22/23 — options costed, decision
+  table deliberately left blank).
+- `content/sysmon/sysmon-baseline.xml` (WP19) — the restorable config G3 asked
+  for, so "fix Sysmon" has a defined end state; `content/detections/` with a
+  worked Sigma rule that demonstrates both acceptance criteria (fires on the
+  seeded run key, does **not** fire on the documented vendor one).
+
+**Not automated, by decision:** the Sysmon binary (not shipped with Windows; stage
+from the admin box), WP20's capture (belongs on the admin box), and WP22/WP23
+(infrastructure decisions, not code).
+
+**Not yet run on hardware.** Parse-clean, and all five new control Test blocks were
+exercised off-box (5 FAIL, all repairable). No `-Repair` has executed on a real VM.
+
+### Added — 2026-09-08 (curriculum work packages WP14–WP23, design session)
+Docs only; no build behaviour changed. A pedagogical review of the range against
+what the industry expects of an entry-level hire — a different question from the
+G1–G11 control-coverage review, and it produced a different list.
+
+**The finding:** the range is close to complete as a *target* and barely started as
+a *course*. It teaches *find it* and *fix it*, roughly a third of an entry-level
+job; triage, prioritisation, documentation, communication and working inside process
+constraints are not modelled at all. Two habits are actively taught **backwards** —
+remediating instantly and unilaterally (no change control), and that every anomaly
+resolves cleanly (because an answer key exists).
+
+- **New gaps G12–G21** in `docs/GRC-CONTROL-MAP.md`, each with a control basis and
+  a work package.
+- **New work packages WP14–WP23** in `docs/IMPROVEMENT-PLAN.md` under *Curriculum
+  work packages*: constrained remediation and risk acceptance (WP14), ATT&CK
+  technique mapping (WP15), change-management wrapper (WP16), benign anomalies and
+  the cost of over-escalation (WP17), root-cause case study (WP18), detection
+  engineering (WP19), network capture and pcap analysis (WP20), evidence handling
+  (WP21), hybrid identity (WP22), a Linux host (WP23).
+- **WP10 reframed** from "GRC deliverable scaffolding" to the **student deliverable
+  pack**, and G12 added to it. It now includes the finding write-up template and a
+  one-page executive summary. The range produces an answer key for instructors and
+  nothing from the student, which is the most common complaint about junior hires.
+- **WP15 note:** `New-RegistryControl` / `New-CustomControl` already carry `Control`
+  (NIST/CIS), `Why` and `Note`, but no technique field — ATT&CK exists in the tree
+  only as prose. Adding `Technique` also gives `Test-RangeConfig.ps1` coverage-by-tactic
+  and feeds WP19.
+- **WP18 uses material the project already has:** the RC4-only-KDC lockout (F26) as a
+  root-cause case study — symptom, false leads, the discriminating observation
+  ("fails only after promotion"), cause, fix. F39 (a `Disabled` ADWS sinking eight
+  unrelated-looking checks) is offered as a second study on "many failures, one cause".
+- **Sequencing added.** WP15, WP16 and WP18 depend on nothing and should jump the
+  queue; WP14 follows WP1 (and WP1 should grow `BusinessImpact` / `RemediationCost`
+  at build time rather than by retrofit); WP19/WP20 follow WP5; WP17/WP21 follow WP7.
+  WP22 and WP23 are flagged **decide, do not drift** — commit or name them as
+  documented syllabus limitations.
+
 ### Fixed — 2026-09-07 (F40 — SMB "signing not offered" is not settable on a DC)
 `smb.srv.enable` ("SMB server signing not offered", `LanManServer\Parameters\
 EnableSecuritySignature=0`) stayed FAIL on the DC. Root cause: a **domain

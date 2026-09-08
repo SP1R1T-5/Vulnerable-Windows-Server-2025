@@ -250,6 +250,37 @@ grade against them.
 
 ---
 
+## Curriculum gaps (G12–G21, added 2026-09-08)
+
+G1–G11 measure the range against its **control coverage**. G12–G21 measure it
+against what the **industry expects of an entry-level hire**, which is a different
+question and produces a different list.
+
+The summary: the range teaches *find it* and *fix it* — roughly a third of the job.
+Triage, prioritisation, documentation, communication and working inside process
+constraints are not modelled at all. Full specs are in
+[IMPROVEMENT-PLAN.md](IMPROVEMENT-PLAN.md) under **Curriculum work packages**.
+
+| Gap | What is missing | Control basis | WP |
+|---|---|---|---|
+| **G12** | No student deliverable — an answer key exists for instructors, nothing is produced by the student | NIST **CA-2**, **CA-5**; the reporting half of SP 800-115 | WP10 |
+| **G13** | No prioritisation or risk acceptance; 125 findings with an implicit "fix everything" | NIST **RA-3**, **PM-4**, **CA-5** POA&M; CIS Control **7.1** | WP14 |
+| **G14** | No ATT&CK mapping as structured data — prose only | MITRE ATT&CK; NIST **RA-3(3)** threat-informed | WP15 |
+| **G15** | Change management not modelled; unilateral instant remediation is rewarded | NIST **CM-3** Configuration Change Control, **CM-4** Impact Analysis | WP16 |
+| **G16** | Every anomaly resolves cleanly; no false positives and no cost to over-escalating | NIST **IR-4**, **SI-4**; the triage half of SP 800-61 | WP17 |
+| **G17** | No detection engineering — students consume detections, never author one | NIST **SI-4(2)**, **AU-6(1)**; CIS Control **8.11**, **13.1** | WP19 |
+| **G18** | No network layer; the range's own traffic is never captured | NIST **SI-4(4)**, **AU-6**; CIS Control **13.3**, **13.6** | WP20 |
+| **G19** | No evidence handling or forensic process discipline | NIST **IR-4**, **AU-9**, **AU-10**; SP 800-86 | WP21 |
+| **G20** | On-premises Windows only — no hybrid/cloud identity, no Linux | NIST **AC-2**, **IA-2**, **SA-9**; CIS Control **6** | WP22, WP23 |
+| **G21** | No root-cause analysis exercise; symptoms are fixed, causes never diagnosed | NIST **IR-4(1)**, **SI-2**; SP 800-61 post-incident | WP18 |
+
+**Cheapest three with the highest return:** WP10 (reframe, already scoped), WP15
+(one field on an existing table), WP14 (the controls exist; it needs a budget and a
+rubric). WP16 and WP18 also cost essentially nothing and correct habits the range
+currently teaches backwards.
+
+---
+
 ## Suggested implementation order
 
 Superseded by the sequenced work packages in
@@ -265,6 +296,15 @@ work-package mapping:
 | G10 | **WP7** — IR narrative and timeline |
 | G5 | **WP8** — sensitive data, shares and ACL depth |
 | G7 | **WP9** — vulnerability-management content |
-| G11 | **WP10** — GRC deliverable scaffolding |
+| G11, G12 | **WP10** — student deliverable pack (write-up, risk register, POA&M, exec summary) |
 | G6 | **WP11** — operations runbook (backup/restore scenario) |
 | G9 | **WP13** — privileged-access tiering (gMSA, Protected Users, tier OUs) |
+| G13 | **WP14** — constrained remediation: prioritisation and risk acceptance |
+| G14 | **WP15** — ATT&CK technique mapping in the control table |
+| G15 | **WP16** — change-management wrapper |
+| G16 | **WP17** — benign anomalies and the cost of over-escalation |
+| G21 | **WP18** — root-cause analysis case study (the RC4 lockout) |
+| G17 | **WP19** — detection engineering |
+| G18 | **WP20** — network capture and pcap analysis |
+| G19 | **WP21** — evidence handling and IR process discipline |
+| G20 | **WP22** — hybrid identity module; **WP23** — a Linux host |

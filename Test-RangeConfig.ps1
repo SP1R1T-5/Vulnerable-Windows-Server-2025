@@ -137,11 +137,13 @@ function Add-Result {
         [ValidateSet('PASS','FAIL','WARN','N-A')][string]$State,
         [string]$Detail = '',
         [string]$Control = '',
-        [ValidateSet('live','reg','')][string]$Probe = ''
+        [ValidateSet('live','reg','')][string]$Probe = '',
+        [string[]]$Technique = @()
     )
     $script:Results.Add([pscustomobject]@{
         Category = $Category; Check = $Check; State = $State
         Detail = $Detail; Control = $Control; Probe = $Probe
+        Technique = ($Technique -join ', ')
     })
 }
 
@@ -231,7 +233,7 @@ if ($Repair) {
             Repair-OneControl -Control $ctl -Before $r
             # Record the post-repair state so the summary reflects reality.
             $final = if ($WhatIfPreference) { $r } else { Test-RangeControl -Control $ctl -Config $cfg }
-            Add-Result $final.Category $final.Name $final.State $final.Detail $final.Control $final.Probe
+            Add-Result $final.Category $final.Name $final.State $final.Detail $final.Control $final.Probe $final.Technique
         }
     }
     # F38: the event-log channel sizes are an ACCEPTED DEVIATION, not a failure.
@@ -245,7 +247,7 @@ if ($Repair) {
 } else {
     foreach ($ctl in $tableControls) {
         $r = Test-RangeControl -Control $ctl -Config $cfg
-        Add-Result $r.Category $r.Name $r.State $r.Detail $r.Control $r.Probe
+        Add-Result $r.Category $r.Name $r.State $r.Detail $r.Control $r.Probe $r.Technique
     }
 }
 
@@ -561,6 +563,7 @@ if ($Format -eq 'Table') {
             $col = switch ($r.State) { 'PASS' {'Green'} 'FAIL' {'Red'} 'WARN' {'Yellow'} default {'Gray'} }
             Write-Host ("  {0,-5} {1,-48} {2}" -f $r.State, $r.Check, $r.Detail) -ForegroundColor $col
             if ($ShowControl -and $r.Control) { Write-Host ("        -> {0}" -f $r.Control) -ForegroundColor DarkGray }
+            if ($ShowControl -and $r.Technique) { Write-Host ("        -> ATT&CK {0}" -f $r.Technique) -ForegroundColor DarkGray }
         }
     }
 }
@@ -574,6 +577,21 @@ $reg  = @($Results | Where-Object Probe -eq 'reg').Count
 $summaryColor = if ($fail -gt 0) { 'Red' } elseif ($warn -gt 0) { 'Yellow' } else { 'Green' }
 Write-Host ("SUMMARY: PASS=$pass  FAIL=$fail  WARN=$warn  N-A=$na   ($live live-state probes, $reg registry-only)") -ForegroundColor $summaryColor
 Write-Host "WARN often = needs reboot / known no-op on 2025 / not verifiable from here." -ForegroundColor Gray
+
+# WP15: ATT&CK coverage of what is actually IN PLACE (PASS/WARN), so the number
+# reflects the range a student meets rather than the table's ambitions. Controls
+# with no defensible technique are deliberately unmapped and simply do not count.
+if ($ShowControl) {
+    $tech = $Results | Where-Object { $_.Technique -and $_.State -in 'PASS','WARN' } |
+            ForEach-Object { $_.Technique -split ',\s*' } | Group-Object | Sort-Object Name
+    if ($tech) {
+        Write-Host ""
+        Write-Host ("ATT&CK COVERAGE (in place): {0} technique(s)" -f $tech.Count) -ForegroundColor Cyan
+        Write-Host ("  " + (($tech | ForEach-Object { "{0} x{1}" -f $_.Name, $_.Count }) -join '   ')) -ForegroundColor DarkGray
+        $unmapped = @($Results | Where-Object { -not $_.Technique -and $_.State -in 'PASS','WARN' }).Count
+        Write-Host ("  {0} in-place control(s) deliberately unmapped -- see `$script:TechniqueMap in RangeControls.psm1" -f $unmapped) -ForegroundColor DarkGray
+    }
+}
 if ($fail -gt 0) {
     Write-Host ""
     Write-Host "FAILURES (build did not apply, or it was reverted):" -ForegroundColor Red
